@@ -8,6 +8,7 @@ import React from 'react'
 
 const menuItems = [
     { name: 'Psychoeducation Hub', href: '#psychoeducation' },
+    { name: 'Zen Zone', href: '/zen' },
 ]
 
 export const HeroHeader = () => {
@@ -37,6 +38,11 @@ export const HeroHeader = () => {
     const getDashboardLink = () => {
         if (!user) return '/login'
         return user.role === 'admin' ? '/admin' : '/dashboard'
+    }
+
+    const getZenLink = () => {
+        if (!user) return '/zen'
+        return user.role === 'admin' ? '/admin/zen' : '/dashboard/zen'
     }
 
     const handleLogout = async () => {
@@ -109,6 +115,15 @@ export const HeroHeader = () => {
                                     {user && (
                                         <li>
                                             <Link
+                                                href={getZenLink()}
+                                                className="text-muted-foreground hover:text-accent-foreground block duration-150">
+                                                <span>Zen Zone</span>
+                                            </Link>
+                                        </li>
+                                    )}
+                                    {user && (
+                                        <li>
+                                            <Link
                                                 href={getDashboardLink()}
                                                 className="text-muted-foreground hover:text-accent-foreground block duration-150">
                                                 <span>Dashboard</span>
@@ -149,6 +164,15 @@ export const HeroHeader = () => {
                                                 </Link>
                                             </li>
                                         </>
+                                    )}
+                                    {user && (
+                                        <li>
+                                            <Link
+                                                href={getZenLink()}
+                                                className="text-muted-foreground hover:text-accent-foreground block duration-150">
+                                                <span>Zen Zone</span>
+                                            </Link>
+                                        </li>
                                     )}
                                     {user && (
                                         <li>

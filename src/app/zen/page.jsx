@@ -207,7 +207,7 @@ export default function ZenZone() {
                    setTimeLeft(30);
                    setActiveMole(null);
                 }}
-                className={`flex items-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-bold transition-all ${activeTab === tab.id ? 'bg-white dark:bg-slate-900 border-transparent dark:border-slate-800/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.1)] scale-105' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-300 hover:bg-white dark:bg-slate-900 border-transparent dark:border-slate-800/5'}`}
+                className={`flex items-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-bold transition-all border ${activeTab === tab.id ? 'bg-teal-500/20 border-teal-300/40 text-teal-100 shadow-[0_0_20px_rgba(45,212,191,0.18)] scale-105' : 'bg-slate-900/40 border-slate-700/60 text-slate-300 hover:text-white hover:border-slate-500/80'}`}
               >
                 <tab.icon className="w-5 h-5" /> <span className="hidden sm:inline">{tab.label}</span>
               </button>
@@ -395,7 +395,7 @@ export default function ZenZone() {
                                     exit={{ scale: 0, opacity: 0, filter: "blur(10px)" }}
                                     whileTap={{ scale: 0.8 }}
                                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                    onMouseDown={() => hitMole(index)}
+                                    onPointerDown={() => hitMole(index)}
                                     className="w-[80%] h-[80%] rounded-full bg-gradient-to-tr from-rose-600 to-orange-500 shadow-[0_0_20px_rgba(225,29,72,0.5)] border-2 border-rose-400/50 cursor-pointer flex items-center justify-center absolute z-20 group"
                                   >
                                     <Target className="w-6 h-6 text-white/50 group-hover:text-white transition-colors" />

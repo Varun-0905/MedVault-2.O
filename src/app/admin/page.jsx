@@ -247,7 +247,7 @@ export default function AdminDashboard() {
               </div>
               <div className="bg-gray-50 px-5 py-3">
                 <div className="text-sm">
-                  <Link href="/zen" className="font-medium text-teal-600 hover:text-teal-500">
+                  <Link href="/admin/zen" className="font-medium text-teal-600 hover:text-teal-500">
                     Open Zen Zone →
                   </Link>
                 </div>
