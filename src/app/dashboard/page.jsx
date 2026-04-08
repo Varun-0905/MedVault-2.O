@@ -157,6 +157,32 @@ export default function StudentDashboard() {
               </div>
             </div>
 
+            {/* Zen Zone */}
+            <div className="bg-white overflow-hidden shadow rounded-lg">
+              <div className="p-5">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="h-8 w-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364 6.364l-2.121-2.121M8.757 8.757L6.636 6.636m11.728 0l-2.121 2.121M8.757 15.243l-2.121 2.121" />
+                    </svg>
+                  </div>
+                  <div className="ml-5 w-0 flex-1">
+                    <dl>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Zen Zone</dt>
+                      <dd className="text-lg font-medium text-gray-900">Guided calming and stress relief tools</dd>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-5 py-3">
+                <div className="text-sm">
+                  <Link href="/zen" className="font-medium text-teal-600 hover:text-teal-500">
+                    Open Zen Zone →
+                  </Link>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           {/* Secondary Features */}
