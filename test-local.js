@@ -1,0 +1,1 @@
+import { getUserByEmail } from './src/lib/users-repo.js'; import bcrypt from 'bcryptjs'; async function main() { const user = await getUserByEmail('admin@college.edu'); console.log(user); if (user) { const isValid = await bcrypt.compare('admin123', user.passwordHash || ''); console.log('is valid:', isValid); } process.exit(0); } main();
