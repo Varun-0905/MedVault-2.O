@@ -86,6 +86,7 @@ export const HeroHeader = () => {
                             <div className="hidden lg:block">
                                 <ul className="flex gap-8 text-sm">
                                     {menuItems.map((item, index) => (
+                                        user && item.name === 'Zen Zone' ? null : (
                                         <li key={index}>
                                             <Link
                                                 href={item.href}
@@ -93,6 +94,7 @@ export const HeroHeader = () => {
                                                 <span>{item.name}</span>
                                             </Link>
                                         </li>
+                                        )
                                     ))}
                                     {user && user.role !== 'admin' && (
                                         <>
@@ -139,6 +141,7 @@ export const HeroHeader = () => {
                             <div className="lg:hidden">
                                 <ul className="space-y-6 text-base">
                                     {menuItems.map((item, index) => (
+                                        user && item.name === 'Zen Zone' ? null : (
                                         <li key={index}>
                                             <Link
                                                 href={item.href}
@@ -146,6 +149,7 @@ export const HeroHeader = () => {
                                                 <span>{item.name}</span>
                                             </Link>
                                         </li>
+                                        )
                                     ))}
                                     {user && user.role !== 'admin' && (
                                         <>
