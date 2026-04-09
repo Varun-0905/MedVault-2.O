@@ -4,21 +4,25 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const MODEL_CONFIGS = [
-  { name: 'gemini-flash-lite-latest', timeoutMs: 10000 },
-  { name: 'gemini-2.5-flash-lite', timeoutMs: 12000 },
-  { name: 'gemini-flash-latest', timeoutMs: 12000 },
-  { name: 'gemini-2.5-flash', timeoutMs: 15000 },
-  { name: 'gemini-2.0-flash-lite', timeoutMs: 10000 },
+  { name: 'gemini-flash-lite-latest', timeoutMs: 4500 },
+  { name: 'gemini-2.5-flash-lite', timeoutMs: 5500 },
+  { name: 'gemini-flash-latest', timeoutMs: 5500 },
+  { name: 'gemini-2.5-flash', timeoutMs: 6500 },
+  { name: 'gemini-2.0-flash-lite', timeoutMs: 4500 },
+  { name: 'gemini-pro-latest', timeoutMs: 5500 },
+  { name: 'gemini-2.5-pro', timeoutMs: 5500 },
 ];
 
+const AI_TOTAL_BUDGET_MS = 9000;
+
 const MODEL_GENERATION_CONFIG = {
-  maxOutputTokens: 560,
+  maxOutputTokens: 720,
   temperature: 0.3,
   topP: 0.9,
 };
 
-const MAX_HISTORY_MESSAGES = 8;
-const MAX_HISTORY_CHARS = 3500;
+const MAX_HISTORY_MESSAGES = 12;
+const MAX_HISTORY_CHARS = 5500;
 
 function toCompactText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -96,45 +100,87 @@ When you say "${normalized}", I want to prioritize your safety right now. Please
 If you are in immediate danger, call emergency services right now. You matter, and support is available this moment.`;
 }
 
-function buildGuidedFallbackResponse(userMessage, topic) {
-  const opening = "Thank you for sharing this with me. Your response makes clinical sense in the context of what you are carrying right now.";
+function buildGuidedFallbackResponse(userMessage, topic, riskLevel = 'low') {
+  const opening = "Thank you for sharing this with me. Your reaction is understandable in the context of what you are managing right now.";
+  const concern = toCompactText(userMessage).slice(0, 220);
 
   const topicPlans = {
     academic_stress: {
-      reflection: "It sounds like academic pressure is draining your energy and making it hard to think clearly.",
-      action: "For the next 15 minutes, pick just one subject and do a tiny start: read one page or solve one question. Small movement reduces overwhelm faster than waiting for motivation.",
-      next: "If you want, I can help you make a 3-step plan for today based on what is most urgent.",
+      reflection: "It sounds like academic pressure is consuming mental bandwidth and reducing concentration.",
+      formulation: "When workload and uncertainty stack together, the brain stays in threat mode and focus drops quickly.",
+      immediate: "For the next 10 minutes, do one reset cycle: 4 slow breaths, drink water, and write the single most urgent academic task.",
+      plan: [
+        "Step 1 (today): Do one 20-minute study sprint on the most urgent topic only.",
+        "Step 2 (today): Take a 5-minute break, then repeat one more 20-minute sprint.",
+        "Step 3 (next 24h): Create a short priority list with only 3 tasks and deadlines.",
+      ],
+      question: "Would you like me to convert your current syllabus pressure into a simple 24-hour plan?",
     },
     relationships: {
-      reflection: "It sounds like relationship stress is taking a real emotional toll on you.",
-      action: "Try writing two short notes: what hurt you, and what you need right now. This helps separate emotion from action before any difficult conversation.",
-      next: "If helpful, I can help you draft calm words for a conversation or boundary message.",
+      reflection: "It sounds like relationship strain is creating emotional overload and reducing your sense of stability.",
+      formulation: "Interpersonal conflict often creates rumination, which can intensify stress and make decisions feel harder.",
+      immediate: "Take 5 minutes to write two lines: what affected you most, and what boundary or support you need right now.",
+      plan: [
+        "Step 1 (today): Pause reactive messaging for one hour to reduce escalation.",
+        "Step 2 (today): Draft one calm statement using 'I feel' and one clear request.",
+        "Step 3 (next 24h): Choose one trusted person for support before a difficult conversation.",
+      ],
+      question: "Would you like help drafting a calm boundary message for this situation?",
     },
     anxiety: {
-      reflection: "I can hear the anxiety and mental overthinking in what you shared.",
-      action: "Try one grounding cycle now: name 5 things you see, 4 you feel, 3 you hear, 2 you smell, and 1 you taste. Then take 4 slow breaths with a longer exhale.",
-      next: "If you want, we can identify the exact thought loop and reframe it together step by step.",
+      reflection: "I can hear significant anxiety and persistent overthinking in what you shared.",
+      formulation: "Anxiety can narrow attention toward threat and create repetitive thought loops that feel difficult to stop.",
+      immediate: "Do one grounding cycle now: 5 things you see, 4 you feel, 3 you hear, 2 you smell, 1 you taste, then 4 slow breaths with longer exhale.",
+      plan: [
+        "Step 1 (today): Label the main anxious thought in one sentence.",
+        "Step 2 (today): Write one alternative, balanced thought.",
+        "Step 3 (next 24h): Use a 10-minute worry window instead of all-day rumination.",
+      ],
+      question: "Would you like to work through your main anxious thought using a quick CBT-style reframe?",
     },
     depression: {
-      reflection: "It sounds like your emotional energy is very low right now, and that can make everything feel harder.",
-      action: "Choose one low-effort action in the next 10 minutes: drink water, wash your face, step into daylight, or text one safe person. Tiny actions can restart momentum.",
-      next: "If you want, I can stay with you and build a gentle plan for the next hour.",
+      reflection: "It sounds like your emotional energy is currently low, and routine tasks are feeling heavier than usual.",
+      formulation: "Low mood can reduce motivation first, so waiting to feel ready usually increases delay and self-criticism.",
+      immediate: "Choose one activation step in the next 10 minutes: water, face wash, sunlight, or a short check-in text to a safe person.",
+      plan: [
+        "Step 1 (today): Complete one 5-10 minute task only.",
+        "Step 2 (today): Pair activity with support, such as music or a friend call.",
+        "Step 3 (next 24h): Schedule two small activities at fixed times.",
+      ],
+      question: "Would you like me to build a low-energy plan for the next 6 hours?",
     },
     sleep_issues: {
-      reflection: "It sounds like poor sleep is amplifying stress and making your days harder.",
-      action: "Tonight, try a short wind-down: no heavy screens for 30 minutes, dim lights, and slow breathing for 5 minutes before bed.",
-      next: "If helpful, I can create a realistic sleep reset plan around your schedule.",
+      reflection: "It sounds like sleep disruption is amplifying stress, concentration problems, and emotional reactivity.",
+      formulation: "Sleep loss can intensify anxiety and reduce executive function, creating a repeating stress cycle.",
+      immediate: "Start a 20-minute wind-down tonight: dim lights, avoid stimulating content, and do paced breathing.",
+      plan: [
+        "Step 1 (today): Set a fixed wake time for tomorrow.",
+        "Step 2 (today): Keep late-evening caffeine and heavy screen exposure low.",
+        "Step 3 (next 24h): Use one 15-minute daytime reset walk for circadian support.",
+      ],
+      question: "Would you like a practical sleep-reset routine based on your class schedule?",
     },
     general_wellness: {
-      reflection: "I hear that things feel difficult right now, and you are doing the right thing by talking about it.",
-      action: "Start with one small stabilizing step: a glass of water, 4 slow breaths, and writing one sentence about what feels hardest right now.",
-      next: "If you want, we can break this into one manageable next step together.",
+      reflection: "I hear that things feel difficult right now, and it is a healthy decision to talk about it directly.",
+      formulation: "When stress signals accumulate, clarity usually improves after one stabilization step and one focused plan step.",
+      immediate: "Do one stabilizing sequence now: water, 4 slow breaths, and one sentence naming the hardest part.",
+      plan: [
+        "Step 1 (today): Define one priority only.",
+        "Step 2 (today): Spend 15 focused minutes on that priority.",
+        "Step 3 (next 24h): Repeat with one additional small priority.",
+      ],
+      question: "Would you like me to help you choose the best first step from your current stressors?",
     },
   };
 
   const plan = topicPlans[topic] || topicPlans.general_wellness;
 
-  return `${opening}\n\n${plan.reflection}\n\n${plan.action}\n\n${plan.next}`;
+  const escalationNote =
+    riskLevel === 'medium' || riskLevel === 'high'
+      ? "If symptoms are escalating or feel unmanageable, connecting with a counselor promptly is a strong next clinical step."
+      : '';
+
+  return `${opening}\n\nIt sounds like this is the core concern right now: "${concern}"\n\n${plan.reflection}\n${plan.formulation}\n\nImmediate regulation step:\n${plan.immediate}\n\nConsultant Plan:\n1. ${plan.plan[0].replace(/^Step\s*1\s*\(.*?\):\s*/i, '')}\n2. ${plan.plan[1].replace(/^Step\s*2\s*\(.*?\):\s*/i, '')}\n3. ${plan.plan[2].replace(/^Step\s*3\s*\(.*?\):\s*/i, '')}\n\n${escalationNote}${escalationNote ? '\n\n' : ''}${plan.question}`;
 }
 
 function normalizeCounselorTone(text) {
@@ -191,6 +237,44 @@ function isLowQualityAiResponse(text) {
   }
 
   return false;
+}
+
+function hasConsultantDepth(text) {
+  const raw = String(text || '');
+  const compact = toCompactText(raw).toLowerCase();
+  if (!compact) return false;
+
+  const paragraphCount = raw
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean).length;
+
+  const hasReflection =
+    /\bit sounds like\b/.test(compact) ||
+    /\bi hear\b/.test(compact) ||
+    /\bthank you for sharing\b/.test(compact);
+
+  const hasPlan =
+    /\bconsultant plan\b/.test(compact) ||
+    /\baction plan\b/.test(compact) ||
+    /\b1\./.test(raw);
+
+  const hasQuestion = /\?/.test(raw);
+
+  return paragraphCount >= 3 && hasReflection && hasPlan && hasQuestion;
+}
+
+function isLimitOrCapacityError(error) {
+  const msg = String(error?.message || '').toLowerCase();
+  return (
+    msg.includes('quota exceeded') ||
+    msg.includes('too many requests') ||
+    msg.includes('[429') ||
+    msg.includes('rate limit') ||
+    msg.includes('high demand') ||
+    msg.includes('service unavailable') ||
+    msg.includes('[503')
+  );
 }
 
 // Helper function to detect conversation topic
@@ -316,22 +400,28 @@ export async function POST(req) {
 
     let result;
     let lastError;
+    let limitOrCapacityFailures = 0;
+    const aiStartTime = Date.now();
 
     // Keep only the most recent context to lower latency and reduce token load.
     const conversationHistory = buildConversationHistory(messages);
 
     // Keep prompt compact to reduce token pressure and improve quota resilience.
-    const prompt = `You are Mira, a calm, trauma-informed student mental wellness companion.
+    const prompt = `You are Mira, a trauma-informed student mental health consultant.
 
-  Rules:
-  - Use a calm clinical counselor tone: steady, grounded, supportive.
-  - Validate first, then offer practical help.
-  - Never diagnose or prescribe medication.
-  - Use short paragraphs with plain language.
+  Response contract (always follow this order):
+  1) Reflection: Validate and mirror the user's emotional state in 2-3 sentences.
+  2) Formulation: Explain the likely stress pattern in plain language (1-2 sentences).
+  3) Consultant Plan: Provide 3 numbered, time-bound steps for today and next 24 hours.
+  4) Check-in Question: Ask one focused follow-up question.
+
+  Clinical style rules:
+  - Calm, grounded, consultant tone; no slang or hype language.
   - Avoid casual interjections such as "Oh wow", "Wow", or "Oh".
-  - Avoid slang, hype language, or dramatic punctuation.
-  - Give 120-240 words.
-  - Include one immediate coping action and one practical next step.
+  - Never diagnose or prescribe medication.
+  - Use practical, specific actions (not generic motivation).
+  - Keep to 170-280 words.
+  - Prefer plain language, short paragraphs.
 
   Context:
   - Mood: ${context.currentMood}
@@ -349,14 +439,16 @@ export async function POST(req) {
   SUGGESTED ACTIONS:
   - [Action Name]: Why this helps
 
-  Start with either:
-  - "Thank you for sharing this."
-  - A direct reflective statement such as "It sounds like..."
+  Start with either "Thank you for sharing this." or a direct reflective statement such as "It sounds like..."
   `;
 
     // Try different models until one works
     for (const modelConfig of modelsToTry) {
       const { name: modelName, timeoutMs } = modelConfig;
+
+      if (Date.now() - aiStartTime > AI_TOTAL_BUDGET_MS) {
+        break;
+      }
 
       try {
         const model = genAI.getGenerativeModel({
@@ -376,6 +468,16 @@ export async function POST(req) {
       } catch (error) {
         console.warn(`Model ${modelName} failed:`, error.message);
         lastError = error;
+
+        if (isLimitOrCapacityError(error)) {
+          limitOrCapacityFailures += 1;
+
+          // Avoid long wait chains when the API key is currently throttled.
+          if (limitOrCapacityFailures >= 3) {
+            break;
+          }
+        }
+
         continue;
       }
     }
@@ -432,8 +534,8 @@ export async function POST(req) {
 
     cleanText = normalizeCounselorTone(cleanText);
 
-    if (isLowQualityAiResponse(cleanText) || hasNonClinicalTone(cleanText)) {
-      cleanText = buildGuidedFallbackResponse(userMessage, detectedTopicFromUser);
+    if (isLowQualityAiResponse(cleanText) || hasNonClinicalTone(cleanText) || !hasConsultantDepth(cleanText)) {
+      cleanText = buildGuidedFallbackResponse(userMessage, detectedTopicFromUser, riskFromUser);
       contextualRouting = false;
       suggestedActions = [];
     }
@@ -468,7 +570,8 @@ export async function POST(req) {
 
     if (!containsCrisisLanguage(latestUserMessage)) {
       const fallbackTopic = detectConversationTopic(latestUserMessage, '');
-      fallbackMessage = buildGuidedFallbackResponse(latestUserMessage, fallbackTopic);
+      const fallbackRisk = assessRiskLevel(latestUserMessage);
+      fallbackMessage = buildGuidedFallbackResponse(latestUserMessage, fallbackTopic, fallbackRisk);
     }
 
     if (error.message?.includes('API_KEY')) {
