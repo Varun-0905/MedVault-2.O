@@ -29,7 +29,7 @@ export const Logo = ({
                     </linearGradient>
                 </defs>
             </svg>
-            <span className="text-xl font-bold">SupportSphere</span>
+            <span className="text-xl font-bold">MedVault</span>
         </div>
     );
 }

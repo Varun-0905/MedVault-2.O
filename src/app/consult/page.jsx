@@ -4,6 +4,113 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 
+const CHAT_REQUEST_TIMEOUT_MS = 14000
+const MAX_CHAT_RETRIES = 1
+
+function isCrisisText(text) {
+  const lower = String(text || '').toLowerCase()
+  return (
+    lower.includes('suicide') ||
+    lower.includes('self-harm') ||
+    lower.includes('kill myself') ||
+    lower.includes('i want to die') ||
+    lower.includes('feel like dying') ||
+    lower.includes('i feel dying')
+  )
+}
+
+function deriveInterruptionReason(error) {
+  if (error?.name === 'AbortError') return 'response timeout'
+  if (error?.status === 429) return 'AI provider rate limit'
+  if (error?.status === 503) return 'AI provider high demand'
+  if (String(error?.message || '').toLowerCase().includes('failed to fetch')) return 'network interruption'
+  return 'temporary service interruption'
+}
+
+function buildClientConsultantFallback(userText, reason) {
+  const concern = String(userText || '').trim().slice(0, 220)
+
+  if (isCrisisText(concern)) {
+    return `Thank you for telling me this. Even though the AI service is temporarily unavailable (${reason}), your safety is the priority right now.
+
+Please call or text 988 immediately, or contact AASRA India at +91-9820466726. If possible, call a trusted person now and ask them to stay with you.
+
+If you are in immediate danger, call emergency services right now. You matter, and support is available.`
+  }
+
+  return `Thank you for sharing this. I could not fully connect to the AI service (${reason}), so I am giving you an immediate consultant response.
+
+It sounds like this is the core concern right now: "${concern}"
+
+Immediate regulation step:
+Take 4 slow breaths, drink some water, and write one sentence about the hardest part right now.
+
+Consultant Plan:
+1. Choose one small action you can complete in 10-15 minutes.
+2. Remove one distraction and focus only on that action.
+3. Reassess after completion and pick one next small step.
+
+If you want, reply with the hardest part in one sentence and I will guide your next step.`
+}
+
+async function requestChat(apiMessages, sessionToken) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), CHAT_REQUEST_TIMEOUT_MS)
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: apiMessages, userContext: { sessionId: sessionToken } }),
+      signal: controller.signal,
+    })
+
+    const raw = await response.text()
+    let data = null
+
+    try {
+      data = raw ? JSON.parse(raw) : null
+    } catch {
+      data = null
+    }
+
+    if (!response.ok || !data || typeof data !== 'object') {
+      const error = new Error(data?.error || `chat-api-${response.status}`)
+      error.status = response.status
+      error.raw = raw
+      throw error
+    }
+
+    return data
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function requestChatWithRetry(apiMessages, sessionToken) {
+  let lastError = null
+
+  for (let attempt = 0; attempt <= MAX_CHAT_RETRIES; attempt += 1) {
+    try {
+      return await requestChat(apiMessages, sessionToken)
+    } catch (error) {
+      lastError = error
+
+      const isTransient =
+        error?.name === 'AbortError' ||
+        error?.status === 429 ||
+        error?.status === 503 ||
+        String(error?.message || '').toLowerCase().includes('failed to fetch')
+
+      if (!isTransient || attempt === MAX_CHAT_RETRIES) {
+        throw lastError
+      }
+    }
+  }
+
+  throw lastError || new Error('chat-request-failed')
+}
+
 const ConsultPage = () => {
   const router = useRouter()
   const [sessionData, setSessionData] = useState(null)
@@ -64,13 +171,7 @@ const ConsultPage = () => {
         content: m.content
       }));
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, userContext: { sessionId: sessionData.token } }),
-      });
-
-      const data = await response.json();
+      const data = await requestChatWithRetry(apiMessages, sessionData?.token);
       
       const botResponse = {
         id: messages.length + 2,
@@ -82,10 +183,14 @@ const ConsultPage = () => {
       
       setMessages(prev => [...prev, botResponse])
     } catch (error) {
+      const reason = deriveInterruptionReason(error)
+      const fallbackContent = buildClientConsultantFallback(userMessage.content, reason)
+
       setMessages(prev => [...prev, {
         id: messages.length + 2,
         type: 'bot',
-        content: "I'm having trouble connecting right now. If you're in crisis, please immediately contact emergency services or text 988.",
+        content: fallbackContent,
+        isCrisis: isCrisisText(userMessage.content),
         timestamp: new Date()
       }]);
     } finally {
